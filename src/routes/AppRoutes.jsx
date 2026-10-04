@@ -1,10 +1,9 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useContext, useEffect } from "react";
 
-// Auth
-import Login from "../pages/Authentification/Login";
-import UserRegisterPage from "../pages/Authentification/Register";
-import ForgotPassword from "../pages/Authentification/ForgotPassword";
-import ResetPassword from "../pages/Authentification/ResetPassword";
+// Auth SSO
+import Callback from "../pages/Authentification/Callback";
+import RegisterComplete from "../pages/Authentification/RegisterComplete";
 
 // Pages principales
 import HomePage from "../pages/HomePage";
@@ -22,65 +21,70 @@ import ConstructionDetailsPage from '../pages/ConstructionDetailsPage';
 import PermisRemblai from '../pages/PermisRemblai';
 import PrescriptionUrbanisme from '../pages/PrescriptionUrbanisme';
 
-
 // Admin & Profile
 import AdminDashboard from "../pages/Admin/AdminDashboard";
 import UsersList from "../components/Users/UsersList";
 import RoleManagement from "../pages/RoleAppli/Role";
 
-/**
- * ProtectedRoute vérifie uniquement localStorage (clé "user").
- * Si la valeur est absente / invalide => redirect vers /login
- */
-const ProtectedRoute = ({ children }) => {
-  const user = localStorage.getItem("access_token");
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+// Route protégée (vérifie le JWT via /serviceauth/auth/verify-token)
+import PrivateRoute from "../components/auth/PrivateRoute";
+import AuthenticatedRoute from "../components/auth/AuthenticatedRoute";
+import ProfileRequiredRoute from "../components/auth/ProfileRequiredRoute";
+import { AuthContext } from "../context/AuthContext";
+import { getProfileCompletion } from "../utils/profileUtils";
 
-  return children;
-};
+function ProfileVerificationLogger() {
+  const { pathname } = useLocation();
+  const { user } = useContext(AuthContext);
 
-/**
- * PublicRoute vérifie si l'utilisateur est authentifié.
- * Si authentifié => redirect vers /
- */
-const PublicRoute = ({ children }) => {
-  const user = localStorage.getItem("access_token");
-  if (user) {
-    return <Navigate to="/" replace />;
-  }
+  useEffect(() => {
+    const profileStatus = getProfileCompletion(user);
 
-  return children;
-};
+    console.info("[Vérification profil]", {
+      page: pathname,
+      user_id: profileStatus.user_id,
+      id_citizen: profileStatus.id_citizen,
+      complete: profileStatus.complete,
+      champs_manquants: profileStatus.missingFields,
+    });
+  }, [pathname, user]);
+
+  return null;
+}
 
 function App() {
   return (
     <Router>
+      <ProfileVerificationLogger />
       <Routes>
         {/* Public */}
         <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/register" element={<PublicRoute><UserRegisterPage /></PublicRoute>} />
-        <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
-        <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
+        <Route path="/callback" element={<Callback />} />
+        <Route
+          path="/register-complete"
+          element={
+            <AuthenticatedRoute>
+              <RegisterComplete />
+            </AuthenticatedRoute>
+          }
+        />
         <Route path="/permis" element={<PermisConstruction />} />
 
         {/* Protected Routes */}
         <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <DashboardClient />
-            </ProtectedRoute>
-          }
-        />
+            path="/dashboard"
+            element={
+              <ProfileRequiredRoute>
+                <DashboardClient />
+              </ProfileRequiredRoute>
+            }
+          />
         <Route
           path="/dashboard-client"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <DashboardClient />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
 
@@ -88,34 +92,34 @@ function App() {
         <Route
           path="/alignement"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <Allignement />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
         <Route
           path="/alignement-list"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <AlignmentListPage />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
         <Route
           path="/alignment-details/:id"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <AlignmentDetailsPage />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
 
         <Route
           path="/prescription-urbanisme"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <PrescriptionUrbanisme />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
 
@@ -123,52 +127,51 @@ function App() {
         <Route
           path="/permis-list"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <ConstructionListPage />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
         <Route
           path="/permis-details/:id"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <ConstructionDetailsPage />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
         <Route
           path="/permis-remblai"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <PermisRemblai />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
-
 
         {/* Admin */}
         <Route
           path="/admin-dashboard"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <AdminDashboard />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
         <Route
           path="/users"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <UsersList />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
         <Route
           path="/RoleManagement"
           element={
-            <ProtectedRoute>
+            <ProfileRequiredRoute>
               <RoleManagement />
-            </ProtectedRoute>
+            </ProfileRequiredRoute>
           }
         />
 

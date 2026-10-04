@@ -4,11 +4,11 @@ import { useState, useEffect, useContext } from "react";
 import { useTranslation } from 'react-i18next';
 import { User, Globe, Menu, X, Sun, Moon } from "lucide-react";
 import { AuthContext } from "../context/AuthContext";
-import { authService } from "../services/api/authService";
+import { loginWithYaho, registerWithYaho } from "../auth/authActions";
 
 function NavigationBar({ activeSection, setActiveSection }) {
   const { t, i18n } = useTranslation();
-  const { user, logout } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [isLanguageOpen, setIsLanguageOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -28,30 +28,6 @@ function NavigationBar({ activeSection, setActiveSection }) {
     }
   };
 
-  useEffect(() => {
-    const checkAuth = () => {
-      if (!authService.isAuthenticated()) {
-        // If not authenticated, logout to clear state
-        logout();
-      }
-    };
-
-    // Check on mount
-    checkAuth();
-
-    // Check on window focus
-    const handleFocus = () => checkAuth();
-    window.addEventListener('focus', handleFocus);
-
-    // Check every 5 minutes
-    const interval = setInterval(checkAuth, 5 * 60 * 1000);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
-    };
-  }, [logout]);
-  
   useEffect(() => {
     const handleLanguageChange = (lng) => setCurrentLanguage(lng);
     i18n.on('languageChanged', handleLanguageChange);
@@ -73,9 +49,16 @@ function NavigationBar({ activeSection, setActiveSection }) {
     if (user) {
       navigate('/dashboard');
     } else {
-      navigate('/login');
+      loginWithYaho();
     }
   };
+
+  const userName =
+    user?.user_pseudo ||
+    user?.username ||
+    user?.name ||
+    [user?.citizen_name, user?.citizen_lastname].filter(Boolean).join(" ") ||
+    t('common.connected');
 
   const handleClick = (e, section) => {
     handleNavClick(e, section);
@@ -125,8 +108,16 @@ function NavigationBar({ activeSection, setActiveSection }) {
             className="bg-[#269745] text-white px-4 py-2 rounded-lg hover:bg-[#1e7e3a] flex items-center space-x-2 transition-colors duration-300"
           >
             <User className="w-4 h-4" />
-            <span>{user ? (user.username || t('common.connected')) : t('common.login')}</span>
+            <span>{user ? userName : t('common.login')}</span>
           </button>
+          {!user && (
+            <button
+              onClick={registerWithYaho}
+              className="border-2 border-[#269745] text-[#269745] px-4 py-1.5 rounded-lg hover:bg-[#269745] hover:text-white flex items-center space-x-2 transition-colors duration-300"
+            >
+              <span>{t('common.register')}</span>
+            </button>
+          )}
 
           <div className="relative">
             <button
@@ -227,8 +218,19 @@ function NavigationBar({ activeSection, setActiveSection }) {
             className="block px-4 py-2 text-base font-medium text-gray-800 hover:text-[#269745] flex items-center space-x-2"
           >
             <User className="w-4 h-4" />
-            <span>{user ? (user.username || t('common.connected')) : t('common.login')}</span>
+            <span>{user ? userName : t('common.login')}</span>
           </button>
+          {!user && (
+            <button
+              onClick={() => {
+                registerWithYaho();
+                setIsMobileMenuOpen(false);
+              }}
+              className="block px-4 py-2 text-base font-medium text-[#269745] hover:underline flex items-center space-x-2"
+            >
+              <span>{t('common.register')}</span>
+            </button>
+          )}
           <div className="px-4 py-2">
             <div className="flex items-center space-x-2 text-gray-800">
               <Globe className="w-5 h-5" />

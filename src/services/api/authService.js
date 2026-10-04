@@ -1,8 +1,10 @@
 import { jwtDecode } from "jwt-decode";
 import Cookies from "js-cookie";
 import axiosConfig from "./axios.config";
+import { citoyenService } from "./citoyenService";
 
 const AUTH_TOKEN_KEY = "access_token";
+const USER_PROFILE_KEY = "user_profile";
 
 const isSecure = () => window.location.protocol === "https:";
 
@@ -28,7 +30,9 @@ export const authService = {
 
   getToken: () => {
     const token =
-      localStorage.getItem(AUTH_TOKEN_KEY) || Cookies.get(AUTH_TOKEN_KEY);
+      sessionStorage.getItem("app_jwt") ||
+      localStorage.getItem(AUTH_TOKEN_KEY) ||
+      Cookies.get(AUTH_TOKEN_KEY);
     if (!token) return null;
     try {
       const decodedToken = jwtDecode(token);
@@ -50,18 +54,46 @@ export const authService = {
     return token ? jwtDecode(token) : null;
   },
 
+  setUserProfile: (profile) => {
+    if (profile) sessionStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+  },
+
+  clearUserProfile: () => {
+    sessionStorage.removeItem(USER_PROFILE_KEY);
+  },
+
   isAuthenticated: () => {
     return !!authService.getToken();
   },
 
   getUserInfo: () => {
-    return authService.decodedToken();
+    const tokenUser = authService.decodedToken() || {};
+    let profile = {};
+
+    try {
+      profile = JSON.parse(sessionStorage.getItem(USER_PROFILE_KEY) || "{}");
+    } catch {
+      profile = {};
+    }
+
+    return {
+      ...tokenUser,
+      ...(tokenUser.user || {}),
+      ...profile,
+    };
+  },
+
+  getUserById: async (userId) => {
+    if (!userId) return null;
+
+    const response = await axiosConfig.get(`/serviceauth/users/${userId}`);
+    return response.data?.user || response.data;
   },
 
   getUserId: () => {
     const decodedToken = authService.decodedToken();
     if (decodedToken) {
-      return decodedToken.sub || decodedToken.user_id;
+      return decodedToken.user_id || decodedToken.sub;
     }
     return null;
   },
@@ -82,9 +114,37 @@ export const authService = {
       const response = await axiosConfig.get("/serviceauth/auth/profile", {
         headers: {
           Authorization: `Bearer ${token}`,
-        },
+        }, 
       });
-      return response.data; // Retourne les infos complètes de l'utilisateur
+      const user = response.data?.user || response.data?.data || response.data;
+
+      if (!user) return null;
+
+      const idCitizen = user.id_citizen;
+      const userId = user.user_id || authService.getUserId();
+
+      if (!idCitizen) {
+        return {
+          ...user,
+          user_id: userId,
+          citizen: null,
+        };
+      }
+
+      const citizenResponse = await citoyenService.getCitizenData(idCitizen);
+      const citizen =
+        citizenResponse?.citizen ||
+        citizenResponse?.data?.citizen ||
+        citizenResponse?.data?.data?.citizen ||
+        citizenResponse?.data ||
+        citizenResponse;
+
+      return {
+        ...user,
+        user_id: userId,
+        id_citizen: idCitizen,
+        citizen,
+      };
     } catch (error) {
       console.error("Erreur lors de la récupération de l'utilisateur :", error);
       return null;
@@ -327,6 +387,22 @@ export const authService = {
       throw error;
     }
   },
+
+  updateUserById: async (userId, payload) => {
+  const token = authService.getToken();
+
+  const response = await axiosConfig.put(
+    `/serviceauth/users/${userId}`,
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return response.data;
+},
 
   forgotPassword: async (email) => {
     try {
